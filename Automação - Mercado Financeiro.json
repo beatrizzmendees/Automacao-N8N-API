@@ -1,0 +1,269 @@
+{
+  "name": "Automação - Mercado Financeiro",
+  "nodes": [
+    {
+      "parameters": {
+        "sendTo": "beatrizmendes@asimovjr.com.br",
+        "subject": "={{ $json.assunto }}",
+        "message": "=Bom dia! Segue o relatório sobre as ações. \n{{ $json.html_email }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        784,
+        128
+      ],
+      "id": "bb5155e1-79da-422d-a4ac-663b75b0ce72",
+      "name": "Enviar mensagem por Gmail",
+      "webhookId": "350ecf60-b287-4de3-8e8e-6893e419271d",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "JZFslhytrPK9HrPn",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "{\n\"tickers\" : [\"PETR4\", \"VALE3\", \"ITUB4\", \"MGLU3\"]\n}\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        -256,
+        144
+      ],
+      "id": "335382d9-4ce9-4a35-a363-6b6502b4e1a4",
+      "name": "Organizando tickers"
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "tickers",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1.1,
+      "position": [
+        -64,
+        144
+      ],
+      "id": "5389640b-0afd-4929-a0de-814de323d598",
+      "name": "Divindo os tickers"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        160,
+        144
+      ],
+      "id": "c1b40083-5093-481c-82aa-f5ce07f236fc",
+      "name": "Loop para passar por todos tickers"
+    },
+    {
+      "parameters": {
+        "url": "=https://brapi.dev/api/v2/stocks/quote?symbols={{ $json.tickers }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer 7q8kwEwkL2GesnPFN2rcCv"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        336,
+        304
+      ],
+      "id": "7a63e842-835f-4a72-b2ac-6fee8cc505ae",
+      "name": "Consulta de ações(API -Brapi)"
+    },
+    {
+      "parameters": {
+        "fieldsToAggregate": {
+          "fieldToAggregate": [
+            {
+              "fieldToAggregate": "results[0].symbol",
+              "renameField": true,
+              "outputFieldName": "Ticker"
+            },
+            {
+              "fieldToAggregate": "results[0].data.regularMarketPrice",
+              "renameField": true,
+              "outputFieldName": "Preço"
+            },
+            {
+              "fieldToAggregate": "results[0].data.regularMarketChangePercent",
+              "renameField": true,
+              "outputFieldName": "Variação Diária (%)"
+            },
+            {
+              "fieldToAggregate": "results[0].data.regularMarketDayRange",
+              "renameField": true,
+              "outputFieldName": "Faixa de Preço do Dia"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [
+        384,
+        128
+      ],
+      "id": "abd5e7bb-26c7-4c68-9ace-b73ca9a5b668",
+      "name": "Agregação de infos"
+    },
+    {
+      "parameters": {
+        "jsCode": "const dados = $input.first().json;\n\nlet html = `\n<h2>Relatório de Cotações</h2>\n<table border=\"1\" cellpadding=\"8\" cellspacing=\"0\"\nstyle=\"border-collapse:collapse;width:100%;font-family:Arial\">\n<tr style=\"background:#1e3a8a;color:white\">\n<th>Ticker</th>\n<th>Preço (R$)</th>\n<th>Variação Diária (%)</th>\n<th>Faixa de Preço do Dia</th>\n</tr>`;\n\nfor (let i = 0; i < dados.Ticker.length; i++) {\n  const variacao = dados[\"Variação Diária (%)\"][i];\n  const cor = variacao >= 0 ? \"green\" : \"red\";\n\n  html += `\n  <tr>\n    <td>${dados.Ticker[i]}</td>\n    <td>R$ ${dados[\"Preço\"][i].toFixed(2)}</td>\n    <td style=\"color:${cor}\">${variacao > 0 ? \"+\" : \"\"}${variacao.toFixed(2)}%</td>\n    <td>${dados[\"Faixa de Preço do Dia\"][i]}</td>\n  </tr>`;\n}\n\nhtml += `</table>`;\n\nreturn [{\n  json: {\n    assunto: \"Relatório de Cotações\",\n    html_email: html\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        576,
+        128
+      ],
+      "id": "122853ff-a0d8-4531-991b-ec8e139c2310",
+      "name": "Montar mensagem"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 8
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        -448,
+        144
+      ],
+      "id": "dbdbe743-13d1-46d3-872a-d4bdaf864127",
+      "name": "Disparo automatico"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Organizando tickers": {
+      "main": [
+        [
+          {
+            "node": "Divindo os tickers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Divindo os tickers": {
+      "main": [
+        [
+          {
+            "node": "Loop para passar por todos tickers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop para passar por todos tickers": {
+      "main": [
+        [
+          {
+            "node": "Agregação de infos",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Consulta de ações(API -Brapi)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Consulta de ações(API -Brapi)": {
+      "main": [
+        [
+          {
+            "node": "Loop para passar por todos tickers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar mensagem por Gmail": {
+      "main": [
+        []
+      ]
+    },
+    "Agregação de infos": {
+      "main": [
+        [
+          {
+            "node": "Montar mensagem",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Montar mensagem": {
+      "main": [
+        [
+          {
+            "node": "Enviar mensagem por Gmail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Disparo automatico": {
+      "main": [
+        [
+          {
+            "node": "Organizando tickers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "d806c936-9a6e-4d08-8bc3-9c91de2bd624",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "8f611a25cdbf174392bde6ad00c302d883ddb957d3eb530b81c46d1730a24ee0"
+  },
+  "nodeGroups": [],
+  "id": "t5jIpI7vaLiynazo",
+  "tags": []
+}
